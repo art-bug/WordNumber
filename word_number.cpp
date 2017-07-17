@@ -1,7 +1,6 @@
 #include <iostream>
 #include <string>
 #include <math.h>
-#include <vector>
 #include <locale.h>
 
 template<class Type>
@@ -9,182 +8,125 @@ struct Formatter {
     virtual Type format() {}
 };
 
-template<int Rank>
-class RuNum : public Formatter<std::string> {
-    public:
-        std::string format() const;
-
-        friend std::ostream& operator << (std::ostream &, const RuNum<Rank> &);
-
-        std::string operator = (const RuNum<Rank> &obj) const {
-              return obj.format();
+static const std::string ranks[6][9] = {
+        {
+            "один", "два", "три", 
+            "четыре", "пять", "шесть", 
+            "семь", "восемь", "девять"
+        },
+        {
+            "десять ", "двадцать ", "тридцать ", 
+            "сорок ", "пятьдесят ", "шестьдесят ", 
+            "семьдесят ", "восемьдесят ", "девяносто "
+        },
+        { 
+            "сто ", "двести ", "триста ", 
+            "четыреста ", "пятьсот ", "шестьсот ", 
+            "семьсот ", "восемьсот ", "девятьсот "
+        },
+        {
+            "одна тысяча ", "две тысячи ", "три тысячи ", 
+            "четыре тысячи ", "пять тысяч ", "шесть тысяч ", 
+            "семь тысяч ", "восемь тысяч ", "девять тысяч "
+        },
+        {
+            "десять тысяч ", "двадцать тысяч ", "тридцать тысяч ", 
+            "сорок тысяч ", "пятьдесят тысяч ", "шестьдесят тысяч ",
+            "семьдесят тысяч ", "восемьдесят тысяч ", "девяносто тысяч "
+        },
+        {
+            "сто тысяч ", "двести тысяч ", "триста тысяч ",
+            "четыреста тысяч ", "пятьсот тысяч ", "шестьсот тысяч ",
+            "семьсот тысяч ", "восемьсот тысяч ", "девятьсот тысяч "
         }
 };
 
 template<int Rank>
-std::ostream& operator << (std::ostream &os, const RuNum<Rank> &obj) {
+class RuNum : public Formatter<std::string> {
+    public:
+        const std::string& format();
+
+        friend std::ostream& operator << (std::ostream &, RuNum<Rank> &);
+
+        const std::string& operator = (const RuNum<Rank> &);
+};
+
+template<int Rank>
+std::ostream& operator << (std::ostream &os, RuNum<Rank> &obj) {
         os << obj.format();
         return os;
 }
 
 // Единицы
 template<> class RuNum<1> {
-    int number;
+    int number = 0;
     public:
-        std::string ones[9] = {
-            "один", "два", "три", 
-            "четыре", "пять", "шесть", 
-            "семь", "восемь", "девять"
-        };
-
-        RuNum<1>(int number) {
-            this->number = number;
+        RuNum(int num) {
+            number = num;
         }
 
-        std::string format() {
-            return ones[number-1];
+        const std::string& format() {
+            return ranks[0][number-1];
         }
 };
 
 // Десятки
 template<> class RuNum<2> {
-    int number;
+    int number = 0;
+    const std::string concreteTens[9] = { 
+        "одиннадцать ", "двенадцать ", "тринадцать ", 
+        "четырнадцать ", "пятнадцать ", "шестнадцать ",
+        "семнадцать ", "восемнадцать ", "девятнадцать "
+    };
     public:
-        std::string tens[9] = {
-            "десять ", "двадцать ", "тридцать ", 
-            "сорок ", "пятьдесят ", "шестьдесят ", 
-            "семьдесят ", "восемьдесят ", "девяносто "
-        };
-
-        std::string concreteTens[9] = { 
-            "одиннадцать ", "двенадцать ", "тринадцать ", 
-            "четырнадцать ", "пятнадцать ", "шестнадцать ",
-            "семнадцать ", "восемнадцать ", "девятнадцать "
-        };
-
-        RuNum<2>(int number) {
-            this->number = number;
+        RuNum(int num) {
+            number = num;
         }
 
-        std::string format() {
+        const std::string& format() {
             int oneRankDigit = number % 10;
             number /= 10;
             if (number == 1) {
                 return concreteTens[oneRankDigit-1];
             } else {
-                return tens[number-1] + RuNum<1>(oneRankDigit).format();
+                return ranks[1][number-1] + ranks[0][oneRankDigit-1];
             }
         }
+};
+
+#define runum_specialize(PERIOD) template<> class RuNum<(PERIOD)> {      \
+    int number = 0;                                                      \
+    public:                                                              \
+        RuNum(int num) {                                                 \
+            number = num;                                                \
+        }                                                                \
+                                                                         \
+        const std::string& format() {                                    \
+            std::string resString = "";                                  \
+            for (int period = 0; period < (PERIOD); period++) {          \
+                resString.insert(0, ranks[period][ (number % 10) - 1 ]); \
+                number /= 10;                                            \
+            }                                                            \
+                                                                         \
+            return resString;                                            \
+        }                                                                \
 };
 
 // Сотни
-template<> class RuNum<3> {
-    int number;
-    public:
-        std::string hundreds[9] = { 
-            "сто ", "двести ", "триста ", 
-            "четыреста ", "пятьсот ", "шестьсот ", 
-            "семьсот ", "восемьсот ", "девятьсот "
-        };
-
-        RuNum<3>(int number) {
-            this->number = number;
-        }
-
-        std::string format() {
-            int oneRankDigit = number % 10;
-            number /= 10;
-            int tenRankDigit = number % 10;
-            number /= 10;
-            return hundreds[number-1] + RuNum<2>(tenRankDigit).format() + RuNum<1>(oneRankDigit).format();
-        }
-};
+runum_specialize(3)
 
 // Тысячи
-template<> class RuNum<4> {
-    int number;
-    public:
-        std::string thousands[9] = {
-            "одна тысяча ", "две тысячи ", "три тысячи ", 
-            "четыре тысячи ", "пять тысяч ", "шесть тысяч ", 
-            "семь тысяч ", "восемь тысяч ", "девять тысяч ",
-        };
-
-        RuNum<4>(int number) {
-            this->number = number;
-        }
-
-        std::string format() {
-            std::vector<int> digits;
-            std::string resString = "";
-            for (int digit = 0; digit < 4; digit++) {
-                digits.push_back(number % 10);
-                number /= 10;
-            }
-
-            return thousands[ digits[3] ] + RuNum<3>( digits[2] ).format() + 
-                   RuNum<2>( digits[1] ).format() + RuNum<1>( digits[0] ).format();
-        }
-};
+runum_specialize(4)
 
 // Десятки тысяч
-template<> class RuNum<5> {
-    int number;
-    public:
-        std::string ten_thousands[9] = {
-            "десять тысяч ", "двадцать тысяч ", "тридцать тысяч ", 
-            "сорок тысяч ", "пятьдесят тысяч ", "шестьдесят тысяч ",
-            "семьдесят тысяч ", "восемьдесят тысяч ", "девяносто тысяч "
-        };
-
-        RuNum<5>(int number) {
-            this->number = number;
-        }
-
-        std::string format() {
-            std::vector<int> digits;
-            std::string resString = "";
-            for (int digit = 0; digit < 5; digit++) {
-                digits.push_back(number % 10);
-                number /= 10;
-            }
-
-            return ten_thousands[ digits[4] ] + RuNum<4>( digits[3] ).format() + 
-                   RuNum<3>( digits[2] ).format() + RuNum<2>( digits[1] ).format() + 
-                   RuNum<1>( digits[0] ).format();
-        }
-};
+runum_specialize(5)
 
 // Сотни тысяч
-template<> class RuNum<6> {
-    int number;
-    public:
-        std::string hundred_thousands[9] = {
-            "сто тысяч ", "двести тысяч ", "триста тысяч ",
-            "четыреста тысяч ", "пятьсот тысяч ", "шестьсот тысяч ",
-            "семьсот тысяч ", "восемьсот тысяч ", "девятьсот тысяч "
-        };
-
-        RuNum<6>(int number) {
-            this->number = number;
-        }
-
-        std::string format() {
-            std::vector<int> digits;
-            for (int digit = 0; digit < 6; digit++) {
-                digits.push_back(number % 10);
-                number /= 10;
-            }
-
-            return hundred_thousands[ digits[5] ] + RuNum<5>( digits[4] ).format() + 
-                   RuNum<4>( digits[3] ).format() + RuNum<3>( digits[2] ).format() +
-                   RuNum<2>( digits[1] ).format() + RuNum<1>( digits[0] ).format();
-        }
-};
+runum_specialize(6)
 
 int main() {
     setlocale(0, "RUS");
-    int number;
+    /*int number = 0;
     std::cout << "The number is ";
     std::cin >> number;
     std::cout << " --> ";
@@ -197,7 +139,9 @@ int main() {
         std::cout << "минус ";
         number = -number;
     }
-    RuNum<log10(abs(number)) + 1> ruNum(number);
+    numDigits = int(log10(abs(number)) + 1);
+    RuNum<numDigits> ruNum(number);*/
+    RuNum<4> ruNum(3456);
     std::cout << ruNum << std::endl;
     std::cin.get();
     return 0;
