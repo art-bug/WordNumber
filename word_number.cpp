@@ -3,11 +3,6 @@
 #include <math.h>
 #include <locale.h>
 
-template<class Type>
-struct Formatter {
-    virtual Type format() {}
-};
-
 static const std::string ranks[6][9] = {
         {
             "один", "два", "три", 
@@ -41,49 +36,27 @@ static const std::string ranks[6][9] = {
         }
 };
 
-template<int Rank>
-class RuNum : public Formatter<std::string> {
-    public:
-        const std::string& format();
-
-        friend std::ostream& operator << (std::ostream &, RuNum<Rank> &);
-
-        const std::string& operator = (const RuNum<Rank> &);
+struct Rank {
+    virtual const std::string& format(int) = 0;
 };
 
-template<int Rank>
-std::ostream& operator << (std::ostream &os, RuNum<Rank> &obj) {
-        os << obj.format();
-        return os;
-}
-
 // Единицы
-template<> class RuNum<1> {
-    int number = 0;
+class One : public Rank {
     public:
-        RuNum(int num) {
-            number = num;
-        }
-
-        const std::string& format() {
+        const std::string& format(int number) {
             return ranks[0][number-1];
         }
 };
 
 // Десятки
-template<> class RuNum<2> {
-    int number = 0;
+class Ten : public Rank {
     const std::string concreteTens[9] = { 
         "одиннадцать ", "двенадцать ", "тринадцать ", 
         "четырнадцать ", "пятнадцать ", "шестнадцать ",
         "семнадцать ", "восемнадцать ", "девятнадцать "
     };
     public:
-        RuNum(int num) {
-            number = num;
-        }
-
-        const std::string& format() {
+        const std::string& format(int number) {
             int oneRankDigit = number % 10;
             number /= 10;
             if (number == 1) {
@@ -94,35 +67,88 @@ template<> class RuNum<2> {
         }
 };
 
-#define runum_specialize(PERIOD) template<> class RuNum<(PERIOD)> {      \
-    int number = 0;                                                      \
-    public:                                                              \
-        RuNum(int num) {                                                 \
-            number = num;                                                \
-        }                                                                \
-                                                                         \
-        const std::string& format() {                                    \
-            std::string resString = "";                                  \
-            for (int period = 0; period < (PERIOD); period++) {          \
-                resString.insert(0, ranks[period][ (number % 10) - 1 ]); \
-                number /= 10;                                            \
-            }                                                            \
-                                                                         \
-            return resString;                                            \
-        }                                                                \
+// Сотни
+class Hundred : public Rank {
+    public:
+        const std::string& format(int number) {                                   
+            std::string resString = "";                                 
+            for (int period = 0; period < 3; period++) {         
+                resString.insert(0, ranks[period][ (number % 10) - 1 ]);
+                number /= 10;                                           
+            }                                                           
+                                                                        
+            return resString;                                           
+        }                                                               
 };
 
-// Сотни
-runum_specialize(3)
-
 // Тысячи
-runum_specialize(4)
+class Thousand : public Rank {
+    public:      
+        const std::string& format(int number) {                                   
+            std::string resString = "";                                 
+            for (int period = 0; period < 4; period++) {         
+                resString.insert(0, ranks[period][ (number % 10) - 1 ]);
+                number /= 10;                                           
+            }                                                           
+                                                                        
+            return resString;                                           
+        } 
+};
 
 // Десятки тысяч
-runum_specialize(5)
+class TenThousand : public Rank {
+    public:  
+        const std::string& format(int number) {                                   
+            std::string resString = "";                                 
+            for (int period = 0; period < 5; period++) {         
+                resString.insert(0, ranks[period][ (number % 10) - 1 ]);
+                number /= 10;                                           
+            }                                                           
+                                                                        
+            return resString;                                           
+        }
+};
 
 // Сотни тысяч
-runum_specialize(6)
+class HundredThousand : public Rank {
+    public:
+        const std::string& format(int number) {                                   
+            std::string resString = "";                                 
+            for (int period = 0; period < 6; period++) {         
+                resString.insert(0, ranks[period][ (number % 10) - 1 ]);
+                number /= 10;                                           
+            }                                                           
+                                                                        
+            return resString;                                           
+        } 
+};
+
+class RuNum {
+    int number = 0;
+    Rank *rank = 0;
+    public:
+        RuNum(int num, Rank *rank) {
+            number = num;
+            this->rank = rank;
+        }
+
+        ~RuNum() {
+            delete rank;
+        }
+
+        const std::string& format() {
+            return rank->format(number);
+        }
+
+        friend std::ostream& operator << (std::ostream &, RuNum &);
+
+        const std::string& operator = (const RuNum &);
+};
+
+std::ostream& operator << (std::ostream &os, RuNum &obj) {
+        os << obj.format();
+        return os;
+}
 
 int main() {
     setlocale(0, "RUS");
@@ -141,7 +167,7 @@ int main() {
     }
     numDigits = int(log10(abs(number)) + 1);
     RuNum<numDigits> ruNum(number);*/
-    RuNum<4> ruNum(3456);
+    RuNum ruNum(3456, new Thousand);
     std::cout << ruNum << std::endl;
     std::cin.get();
     return 0;
