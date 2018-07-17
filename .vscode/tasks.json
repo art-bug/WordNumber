@@ -2,10 +2,9 @@
     // See https://go.microsoft.com/fwlink/?LinkId=733558
     // for the documentation about the tasks.json format
     "version": "0.1.0",
-    "windows":
-        {
-            "command": "C:\\Programming_practice\\.vscode\\build.bat",
-            "isShellCommand": true,
-            "showOutput": "always"
-        }
+    "windows": {
+        "command": "C:\\WordNumberProject\\.vscode\\build.bat",
+        "isShellCommand": true,
+        "showOutput": "always"
+    }
 }

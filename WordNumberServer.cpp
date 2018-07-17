@@ -1,17 +1,14 @@
+#define _CRT_SECURE_NO_WARNINGS
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+
 #include <stdio.h>
 #include <winsock2.h>
-// Winsock2.h должен подключаться перед windows.h
+// Winsock2.h must be connected before windows.h
 #include <windows.h>
 #include <locale.h>
-#include <string>
-#include <iostream>
-#include <string.h>
-#include <vector>
 #include "word_number.h"
 
-#pragma comment(lib, "ws2_32.lib")
-
-#define PORT 5555     // Порт, который слушает сервер
+#define PORT 5555
 
 #define PRESS_ANY_KEY std::cin.ignore(); std::cin.get();
 
@@ -19,11 +16,6 @@ DWORD WINAPI serviceActiveClient(LPVOID clientSocket);
 
 int numActiveClients = 0;
 
-Rank* pRanks[9] = {
-    new One, new Ten, new Hundred, new Thousand, new TenThousand, new HundredThousand
-};
-
-// Выводит число активных пользователей
 void printNumUsers() {
     if (numActiveClients) {
         std::cout << numActiveClients << " user online" << std::endl;
@@ -37,54 +29,56 @@ int main() {
 
     std::cout << "NUMTOSTR DEMO SERVER " << std::endl << std::endl;
 
-    // Инициализация библиотеки сокетов
-    // Так как информация, возвращаемая функцией, не используется,
-    // ей передается указатель на рабочий буфер, преобразуемый к 
-    // указателю  на структуру WSADATA. Этот метод позволяет обойтись 
-    // одной переменной, однако, буфер должен быть размером не менее 
-    // полкилобайта (структура WSADATA занимает 400 байт)
+    // Initialize the Winsock library
+	// Since the information returned by the function is not used,
+	// it is passed a pointer to the working buffer, converted to
+	// a pointer to the WSADATA structure. This method allows you to manage
+	// one variable, however, the buffer must be at least
+	// half a kilobyte (WSADATA structure occupies 400 bytes)
 
-    if (WSAStartup(0x0202, []() -> WSADATA* { WSADATA buf[400] = {0}; return buf; }() )) {
-        std::cout << "Error WSAStartup " << WSAGetLastError() << std::endl;
+    if (WSAStartup(0x0202, new WSADATA[400])) {
+        std::cout << "WSA startup error " << WSAGetLastError() << std::endl;
+        PRESS_ANY_KEY
         return -1;
     }
 
-    // Создание сокета
-    // AF_INET     - Интернет-сокет
-    // SOCK_STREAM - потоковый сокет (с установкой соединения)
-    // TCP протокол выбирается автоматически
+	initRankChain();
+
+    // Create a socket
+	// AF_INET - Internet socket
+	// SOCK_STREAM - stream socket (with connection setup)
+	// TCP protocol is automatically selected
 
     SOCKET sock = 0;
     if ( !(sock = socket(AF_INET, SOCK_STREAM, 0))) {
-        std::cout << "Error socket " << WSAGetLastError() << std::endl;
+        std::cout << "Socket error " << WSAGetLastError() << std::endl;
         WSACleanup();
-        // Деинициализация библиотеки Winsock
         return -1;
     }
 
-    // Связка сокета с локальным адресом
     sockaddr_in localAddress = {};
     localAddress.sin_family = AF_INET;
     localAddress.sin_port = htons(PORT);
     localAddress.sin_addr.s_addr = 0;
-    // Сервер принимает подключения на все IP адреса
+    // The server accepts connections to all IP addresses
 
     if ( bind(sock, (sockaddr *) &localAddress, sizeof(localAddress)) ) {
-        std::cout << "Error bind " << WSAGetLastError() << std::endl;
+        std::cout << "Bind error " << WSAGetLastError() << std::endl;
         closesocket(sock);
         WSACleanup();
         return -1;
     }
 
-    // Ожидание подключений
-    // Размер очереди = 5
+    // Waiting for connections
+    // Queue size = 5
     if (listen(sock, 5)) {
-        std::cout << "Error listen " << WSAGetLastError() << std::endl;
+        std::cout << "Listen error " << WSAGetLastError() << std::endl;
         closesocket(sock);
         WSACleanup();
         return -1;
     }
 
+    std::cout << "Server started" << std::endl << std::endl;
     std::cout << "Waiting for connections" << std::endl << std::endl;
 
     SOCKET clientSocket = 0;
@@ -92,94 +86,72 @@ int main() {
 
     int clientAddressSize = sizeof(clientAddress);
 
-    // Цикл получения запросов на подключение из очереди
+    // Loop request queue
     while ( (clientSocket = accept(sock, (sockaddr *)
                             &clientAddress, &clientAddressSize)) )
     {
-        // Вызов нового потока для обслуживания клиента
-        // Для этого рекомендуется использовать _beginthreadex, 
-        // но, поскольку никаких вызовов функций стандартной С библиотеки
-        // поток не делает, можно обойтись CreateThread
+        // Call a new thread to serve the client
+        // For this we recommend using _beginthreadex,
+        // but, since there are no calls to the standard C functions of the library
+        // the thread does not, you can do CreateThread
         DWORD threadID = 0;
         CreateThread(0, 0, serviceActiveClient, &clientSocket, 0, &threadID);
 
         numActiveClients++;
 
-        // Получение имени хоста
         HOSTENT *pHost = gethostbyaddr((char *) &clientAddress.sin_addr.s_addr, 4, AF_INET);
 
         printNumUsers();
     }
 
+    WSACleanup();
+
     return 0;
 }
 
-// Функция создается в отдельном потоке и обслуживает 
-// подключившегося клиента независимо от остальных
+// The function is created in a separate thread and serves
+// the connected client, regardless of the rest
 DWORD WINAPI serviceActiveClient(LPVOID clientSocket) {
     SOCKET socket = ((SOCKET *) clientSocket)[0];
-    
-    //#define launched "Server is running\r\n"
 
-    // приветствие 
-    //send(socket, launched, sizeof(launched), 0);
-
-    fd_set fd;
-    timeval tv;
-    tv.tv_sec = 5000;
-    fd.fd_count = 1;
-    fd.fd_array[0] = socket;
-
-    // Прием числа и возврат клиенту его представления прописью
+    // Receive the number and return the client a representation in words
     const unsigned long MAX_RECEIVE_BUFFER_LENGTH = 8;
     char receiveBuffer[MAX_RECEIVE_BUFFER_LENGTH];
-    char * receiveBufCurrentPos = receiveBuffer;
+    char* receiveBufCurrentPos = receiveBuffer;
 
-    #define IF_CONNECTION_CLOSED if ( ret == 0 ) {  \
-                                    numActiveClients--;  \
-                                    std::cout << "-disconnect" << std::endl;  \
-                                    printNumUsers();  \
-                                    closesocket(socket);  \
+    #define IF_CONNECTION_CLOSED if ( ret == 0 ) {\
+                                    numActiveClients--;\
+                                    std::cout << " disconnected" << std::endl;\
+                                    printNumUsers();\
+                                    return -1;\
                                  }
 
-    if ( select(1, &fd, NULL, NULL, &tv) != 0) {
-        while( (unsigned long)(receiveBufCurrentPos - receiveBuffer) < MAX_RECEIVE_BUFFER_LENGTH+1 )
-        {
-            int ret = recv(socket, (char *) receiveBufCurrentPos, 
-                                   int(MAX_RECEIVE_BUFFER_LENGTH - (receiveBufCurrentPos - receiveBuffer)), 0);
-            if ( ret == -1 ) {
-                std::cout << "server receive failed" << std::endl;
-                break;
-                return 0;
-                //return ret;  ?
-            }
-    
-            if ( ret == 0 ) {
-                break;
-            }
-    
-            IF_CONNECTION_CLOSED
-    
-            std::cout << "server receive ret  " << ret << std::endl;
-    
-            receiveBufCurrentPos += ret;
-    
-            if ( (unsigned long)(receiveBufCurrentPos - receiveBuffer) < MAX_RECEIVE_BUFFER_LENGTH ) 
-            {
-                std::cout << "[recv notice] attempt to receive " << MAX_RECEIVE_BUFFER_LENGTH << " bytes but " 
-                << (unsigned long)(receiveBufCurrentPos - receiveBuffer) << " received per call (" << 
-                (MAX_RECEIVE_BUFFER_LENGTH - ((unsigned long)(receiveBufCurrentPos - receiveBuffer))) << " left to receive)"
-                << std::endl;
-            }
+    while( (unsigned long)(receiveBufCurrentPos - receiveBuffer) < MAX_RECEIVE_BUFFER_LENGTH )
+    {
+        int ret = recv(socket, (char *) receiveBufCurrentPos, 
+                               int(MAX_RECEIVE_BUFFER_LENGTH - (receiveBufCurrentPos - receiveBuffer)), 0);
+        if ( ret == -1 ) {
+            std::cout << "Server receive failed" << std::endl;
+            receiveBufCurrentPos = (char *) &ret;
         }
-    } else {
-        return -1;
+
+        IF_CONNECTION_CLOSED
+
+        receiveBufCurrentPos += ret;
+
+        if ( (unsigned long)(receiveBufCurrentPos - receiveBuffer) < MAX_RECEIVE_BUFFER_LENGTH ) 
+        {
+            std::cout << "[recv notice] attempt to receive " << MAX_RECEIVE_BUFFER_LENGTH << " bytes but " 
+                      << (unsigned long)(receiveBufCurrentPos - receiveBuffer) << " received per call ("
+                      << (MAX_RECEIVE_BUFFER_LENGTH - ((unsigned long)(receiveBufCurrentPos - receiveBuffer)))
+                      << " left to receive)" << std::endl;
+        }
     }
 
     const unsigned long MAX_SEND_BUFFER_LENGTH = 1024;
     char sendBuffer[MAX_SEND_BUFFER_LENGTH] = {0};
 
-    unsigned long number = std::stoi(receiveBufCurrentPos);
+    unsigned long number = atoi(receiveBuffer);
 
     number = ntohl(number);
 
@@ -192,44 +164,31 @@ DWORD WINAPI serviceActiveClient(LPVOID clientSocket) {
         number = -number;
     }
 
-    int numSize = int(log10(abs( (long)number)) + 1);
+    int numSize = int(log10(abs( (long double)number)) + 1);
 
-    const char * strNum = RuNum(number, pRanks[numSize-1]).format().c_str();
+    const char* strNum = rankChain[numSize]->format(number);
 
     strcat(sendBuffer, strNum);
 
-    const char * sendBufCurrentPos = sendBuffer;
+    const char* sendBufCurrentPos = sendBuffer;
 
-    if ( select(1, NULL, &fd, NULL, &tv) != 0) {
-        while( (unsigned long)(sendBufCurrentPos - sendBuffer) < MAX_SEND_BUFFER_LENGTH )
-        {
-            int ret = send(socket, (const char *) sendBufCurrentPos, 
-                                   int(MAX_SEND_BUFFER_LENGTH - (sendBufCurrentPos - sendBuffer)), 0);
-            if ( ret == -1 ) {
-                std::cout << "server send failed" << std::endl;
-                break;
-                return 0;
-                //return ret;  ?
-            }
-    
-            if ( ret == 0 ) {
-                break;
-            }
-    
-            IF_CONNECTION_CLOSED
-    
-            std::cout << "server send ret  " << ret << std::endl;
-    
-            sendBufCurrentPos += ret;
+    while( (unsigned long)(sendBufCurrentPos - sendBuffer) < MAX_SEND_BUFFER_LENGTH )
+    {
+        int ret = send(socket, (const char *) sendBufCurrentPos, 
+                               int(MAX_SEND_BUFFER_LENGTH - (sendBufCurrentPos - sendBuffer)), 0);
+        if ( ret == -1 ) {
+            std::cout << "Server send failed" << std::endl;
+            sendBufCurrentPos = (char *) &ret;
         }
-    } else {
-        return -1;
+
+        IF_CONNECTION_CLOSED
+
+        sendBufCurrentPos += ret;
     }
 
     PRESS_ANY_KEY
 
     closesocket(socket);
-    WSACleanup();
-
+    
     return 0;
 }
