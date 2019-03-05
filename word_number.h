@@ -41,37 +41,51 @@ const char* ranks[6][9] = {
         }
 };
 
-class Rank 
+class Rank
 {
-	Rank *next;
+	Rank *_nextRank { nullptr };
+
+    protected:
+
+        ushort numSize {0};
+
+        char* runNext(int number)
+        {
+            if (!_nextRank) {
+                return (char*)"";
+			}
+
+            return _nextRank->format(number);
+        }
 
 	public:
 
-		Rank() : next(nullptr) {}
-
-		void setNext(Rank *rank)
+		void setNext(Rank *nextRank)
 		{
-			next = rank;
+            if (!_nextRank) {
+                _nextRank = nextRank;
+            }
+            else {
+                _nextRank->setNext(nextRank);
+            }
 		}
 	
-		virtual char* format(int number)
-		{
-			if (next) {
-				return next->format(number);
-			}
+		virtual char* format(int number) = 0;
 
-			return (char*)"";
-		}
-
-		virtual ~Rank() {}
+		virtual ~Rank()
+        {
+            if (_nextRank) {
+                delete _nextRank;
+            }
+        }
 };
 
 // Ones
-class One : public Rank 
+class One : public Rank
 {
     public:
 
-        char* format(int number) override
+        char* format(int number)
 		{
             return (char*)ranks[0][number-1];
         }
@@ -88,33 +102,42 @@ class Ten : public Rank
 
     public:
 
-        char* format(int number) override
+        char* format(int number)
 		{
+            numSize = int(log10(abs((long double) number)) + 1);
+
+            if (numSize < 2) {
+                return runNext(number);
+            }
+
             ushort oneRankDigit = number % 10;
-			ushort tenRankDigit = (number % 100) / 10;
+			ushort tenRankDigit = number / 10;
 
             if (tenRankDigit == 1) {
-                return strcat((char*)concreteTens[oneRankDigit-1], Rank::format(number));
-            } 
+                return strcat((char*)concreteTens[oneRankDigit-1], runNext(oneRankDigit));
+            }
 
-			return strcat((char*)ranks[1][tenRankDigit - 1], Rank::format(number));
+			return strcat((char*)ranks[1][tenRankDigit - 1], runNext(oneRankDigit));
         }
 };
 
 // Hundreds
-class Hundred : public Rank 
+class Hundred : public Rank
 {
     public:
 
-        char* format(int number) override
+        char* format(int number)
 		{
-            char* resString = new char();
-            for (int period = 2; period >= 0; period--) {
-                strcat(resString, ranks[period][ (number % 10) - 1 ]);
-                number /= 10;
+            numSize = int(log10(abs((long double) number)) + 1);
+
+            if (numSize < 3) {
+                return runNext(number);
             }
 
-			return strcat(resString, Rank::format(number));
+            ushort tenNumber = number % 100;
+            ushort hundredDigit = number / 100;
+
+			return strcat((char*)ranks[2][hundredDigit - 1], runNext(tenNumber));
         }
 };
 
@@ -123,74 +146,128 @@ class Thousand : public Rank
 {
     public:
 
-        char* format(int number) override
+        char* format(int number)
 		{
-            char* resString = new char();
-            for (int period = 3; period >= 0; period--) {
-                strcat(resString, ranks[period][ (number % 10) - 1 ]);
-                number /= 10;
+            numSize = int(log10(abs((long double) number)) + 1);
+
+            if (numSize < 4) {
+                return runNext(number);
             }
 
-			return strcat(resString, Rank::format(number));
+            ushort hundredNumber = number % 1000;
+            ushort thousandDigit = number / 10000;
+
+			return strcat((char*)ranks[3][thousandDigit - 1], runNext(hundredNumber));
         }
 };
 
 // Tens of thousands
-class TenThousand : public Rank 
+class TenThousand : public Rank
 {
     public:
 
-        char* format(int number) override
+        char* format(int number)
 		{
-            char* resString = new char();
-            for (int period = 4; period >= 0; period--) {
-                strcat(resString, ranks[period][ (number % 10) - 1 ]);
-                number /= 10;
+            numSize = int(log10(abs((long double) number)) + 1);
+
+            if (numSize < 5) {
+                return runNext(number);
             }
             
-            return strcat(resString, Rank::format(number));
+            ushort thousandNumber = number % 10000;
+            ushort tenThousandDigit = number / 100000;
+
+			return strcat((char*)ranks[4][tenThousandDigit - 1], runNext(thousandNumber));
         }
 };
 
 // Hundreds of thousands
-class HundredThousand : public Rank 
+class HundredThousand : public Rank
 {
     public:
 
-        char* format(int number) override
+        char* format(int number)
 		{
-            char* resString = new char();
-            for (int period = 5; period >= 0; period--) {
-                strcat(resString, ranks[period][ (number % 10) - 1 ]);
-                number /= 10;
+            numSize = int(log10(abs((long double) number)) + 1);
+
+            if (numSize < 6) {
+                return runNext(number);
             }
 
-			return strcat(resString, Rank::format(number));
+            ushort tenThousandNumber = number % 100000;
+            ushort hundredThousandDigit = number / 1000000;
+
+			return strcat((char*)ranks[5][hundredThousandDigit - 1], runNext(tenThousandNumber));
         }
 };
 
-std::map<ushort, Rank*> rankChain;
+class WordNumber
+{
+    Rank *rootRank {nullptr};
 
-void initRankChain() {
-	Rank* rankClassPointers[] = {
-		new One(),
-		new Ten(),
-		new Hundred(),
-		new Thousand(),
-		new TenThousand(),
-		new HundredThousand()
-	};
+    Rank* rankPointers[6] = {
+        new HundredThousand(),
+        new TenThousand(),
+        new Thousand(),
+        new Hundred(),
+        new Ten(),
+        new One()
+    };
 
-	ushort strLen = 1;
-	for (auto rankClassPointer : rankClassPointers) {
-		rankChain[strLen] = rankClassPointer;
-		++strLen;
-	}
+    void initRankChain()
+    {
+	    for (auto rankPtr : rankPointers) {
+	        installRank(rankPtr);
+	    }
+    }
 
-	while (strLen > 1) {
-		rankChain[strLen - 1]->setNext(rankChain[strLen - 1]);
-		--strLen;
-	}
-}
+    public:
+
+        WordNumber()
+        {
+            initRankChain();
+        }
+
+        void installRank(Rank *rank)
+        {
+            if (!rootRank) {
+                rootRank = rank;
+            }
+            else {
+                rootRank->setNext(rank);
+            }
+        }
+
+        char* format(int number)
+		{
+            return rootRank->format(number);
+        }
+};
+
+static WordNumber wnServer;
+
+// std::map<ushort, Rank*> rankChain;
+
+// void initRankChain() {
+// 	Rank* rankClassPointers[] = {
+// 		new One(),
+// 		new Ten(),
+// 		new Hundred(),
+// 		new Thousand(),
+// 		new TenThousand(),
+// 		new HundredThousand()
+// 	};
+
+// 	ushort strLen = 1;
+// 	for (auto rankClassPointer : rankClassPointers) {
+// 		rankChain[strLen] = rankClassPointer;
+// 		++strLen;
+// 	}
+
+// 	while (strLen > 1) {
+// 		rankChain[strLen - 1]->setNext(rankChain[strLen - 1]);
+// 		--strLen;
+// 	}
+// }
 
 #endif

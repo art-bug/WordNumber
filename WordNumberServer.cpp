@@ -42,15 +42,13 @@ int main() {
         return -1;
     }
 
-	initRankChain();
-
     // Create a socket
 	// AF_INET - Internet socket
 	// SOCK_STREAM - stream socket (with connection setup)
 	// TCP protocol is automatically selected
 
     SOCKET sock = 0;
-    if ( !(sock = socket(AF_INET, SOCK_STREAM, 0))) {
+    if (!(sock = socket(AF_INET, SOCK_STREAM, 0))) {
         std::cout << "Socket error " << WSAGetLastError() << std::endl;
         WSACleanup();
         return -1;
@@ -62,7 +60,7 @@ int main() {
     localAddress.sin_addr.s_addr = 0;
     // The server accepts connections to all IP addresses
 
-    if ( bind(sock, (sockaddr *) &localAddress, sizeof(localAddress)) ) {
+    if (bind(sock, (sockaddr *) &localAddress, sizeof(localAddress))) {
         std::cout << "Bind error " << WSAGetLastError() << std::endl;
         closesocket(sock);
         WSACleanup();
@@ -87,8 +85,7 @@ int main() {
     int clientAddressSize = sizeof(clientAddress);
 
     // Loop request queue
-    while ( (clientSocket = accept(sock, (sockaddr *)
-                            &clientAddress, &clientAddressSize)) )
+    while ((clientSocket = accept(sock, (sockaddr *) &clientAddress, &clientAddressSize)))
     {
         // Call a new thread to serve the client
         // For this we recommend using _beginthreadex,
@@ -119,18 +116,18 @@ DWORD WINAPI serviceActiveClient(LPVOID clientSocket) {
     char receiveBuffer[MAX_RECEIVE_BUFFER_LENGTH];
     char* receiveBufCurrentPos = receiveBuffer;
 
-    #define IF_CONNECTION_CLOSED if ( ret == 0 ) {\
+    #define IF_CONNECTION_CLOSED if (ret == 0) {\
                                     numActiveClients--;\
                                     std::cout << " disconnected" << std::endl;\
                                     printNumUsers();\
                                     return -1;\
                                  }
 
-    while( (unsigned long)(receiveBufCurrentPos - receiveBuffer) < MAX_RECEIVE_BUFFER_LENGTH )
+    while ((unsigned long)(receiveBufCurrentPos - receiveBuffer) < MAX_RECEIVE_BUFFER_LENGTH)
     {
         int ret = recv(socket, (char *) receiveBufCurrentPos, 
                                int(MAX_RECEIVE_BUFFER_LENGTH - (receiveBufCurrentPos - receiveBuffer)), 0);
-        if ( ret == -1 ) {
+        if (ret == -1) {
             std::cout << "Server receive failed" << std::endl;
             receiveBufCurrentPos = (char *) &ret;
         }
@@ -139,12 +136,12 @@ DWORD WINAPI serviceActiveClient(LPVOID clientSocket) {
 
         receiveBufCurrentPos += ret;
 
-        if ( (unsigned long)(receiveBufCurrentPos - receiveBuffer) < MAX_RECEIVE_BUFFER_LENGTH ) 
+        if ((unsigned long)(receiveBufCurrentPos - receiveBuffer) < MAX_RECEIVE_BUFFER_LENGTH)
         {
-            std::cout << "[recv notice] attempt to receive " << MAX_RECEIVE_BUFFER_LENGTH << " bytes but " 
-                      << (unsigned long)(receiveBufCurrentPos - receiveBuffer) << " received per call ("
-                      << (MAX_RECEIVE_BUFFER_LENGTH - ((unsigned long)(receiveBufCurrentPos - receiveBuffer)))
-                      << " left to receive)" << std::endl;
+            std::cout << "[recv notice] attempt to receive " << MAX_RECEIVE_BUFFER_LENGTH << " bytes but ";
+            std::cout << (unsigned long)(receiveBufCurrentPos - receiveBuffer) << " received per call (";
+            std::cout << (MAX_RECEIVE_BUFFER_LENGTH - ((unsigned long)(receiveBufCurrentPos - receiveBuffer)));
+            std::cout << " left to receive)" << std::endl;
         }
     }
 
@@ -164,19 +161,17 @@ DWORD WINAPI serviceActiveClient(LPVOID clientSocket) {
         number = -number;
     }
 
-    int numSize = int(log10(abs( (long double)number)) + 1);
-
-    const char* strNum = rankChain[numSize]->format(number);
+    const char* strNum = wnServer.format((int)(number));
 
     strcat(sendBuffer, strNum);
 
     const char* sendBufCurrentPos = sendBuffer;
 
-    while( (unsigned long)(sendBufCurrentPos - sendBuffer) < MAX_SEND_BUFFER_LENGTH )
+    while ((unsigned long)(sendBufCurrentPos - sendBuffer) < MAX_SEND_BUFFER_LENGTH)
     {
         int ret = send(socket, (const char *) sendBufCurrentPos, 
                                int(MAX_SEND_BUFFER_LENGTH - (sendBufCurrentPos - sendBuffer)), 0);
-        if ( ret == -1 ) {
+        if (ret == -1) {
             std::cout << "Server send failed" << std::endl;
             sendBufCurrentPos = (char *) &ret;
         }

@@ -39,8 +39,6 @@ int main() {
         return -1;
     }
 
-	initRankChain();
-
 	// Create a socket
 	// AF_INET - Internet socket
 	// SOCK_STREAM - stream socket (with connection setup)
@@ -55,7 +53,6 @@ int main() {
     }
 
 	// Specify the server address and port
-
     sockaddr_in dest_addr = {};
     dest_addr.sin_family = AF_INET;
     dest_addr.sin_port = htons(PORT);
@@ -64,15 +61,14 @@ int main() {
     if (inet_addr(SERVERADDRESS) != INADDR_NONE) {
         dest_addr.sin_addr.s_addr = inet_addr(SERVERADDRESS);
     } else {
-		HOSTENT *pHost = 0;
+		HOSTENT *pHost = gethostbyname(SERVERADDRESS);
 
 		// Obtain an IP address by the domain name of the server
-        if (pHost = gethostbyname(SERVERADDRESS)) {
+        if (pHost) {
 
 			//      Important!
 			// pHost-> h_addr_list contains an array of pointers to addresses
-            ((ulong *) &dest_addr.sin_addr)[0] =
-                           ((ulong **) pHost->h_addr_list)[0][0];
+            ((ulong *) &dest_addr.sin_addr)[0] = ((ulong **) pHost->h_addr_list)[0][0];
 
         } else {
             std::cout << "Invalid address " << SERVERADDRESS << std::endl;
@@ -101,9 +97,7 @@ int main() {
 
     std::cin >> number;
 
-    ushort numSize = int(log10(abs( (long double)number )) + 1);
-
-    const char* strNum = rankChain[numSize]->format(number);
+    const char* strNum = wnServer.format((int)(number));
 
     number = htonl(number);
 
@@ -111,10 +105,10 @@ int main() {
 
     const char* sendBufCurrentPos = sendBuffer;
 
-    while( sendBufCurrentPos - sendBuffer < MAX_SEND_BUF_SIZE ) 
+    while (sendBufCurrentPos - sendBuffer < MAX_SEND_BUF_SIZE) 
     {
-        int ret = send(sock, sendBufCurrentPos, 
-                             int(MAX_SEND_BUF_SIZE - (sendBufCurrentPos - sendBuffer)), 0);
+        int ret = send(sock, sendBufCurrentPos, int(MAX_SEND_BUF_SIZE - (sendBufCurrentPos - sendBuffer)), 0);
+        
         if ( ret == -1 ) {
             std::cout << "client send failed" << std::endl;
             sendBufCurrentPos = (char *) &ret;
@@ -129,11 +123,11 @@ int main() {
     char receiveBuffer[MAX_RECEIVE_BUFFER_LENGTH];
     char* receiveBufCurrentPos = receiveBuffer;
 
-    while( (ulong)(receiveBufCurrentPos - receiveBuffer) < MAX_RECEIVE_BUFFER_LENGTH )
+    while ((ulong)(receiveBufCurrentPos - receiveBuffer) < MAX_RECEIVE_BUFFER_LENGTH)
     {
         int ret = recv(sock, (char *) receiveBufCurrentPos, 
                              int(MAX_RECEIVE_BUFFER_LENGTH - (receiveBufCurrentPos - receiveBuffer)), 0);
-        if ( ret == -1 ) {
+        if (ret == -1) {
             std::cout << "client receive failed" << std::endl;
             receiveBufCurrentPos = (char *) &ret;
         }
@@ -142,12 +136,12 @@ int main() {
 
         receiveBufCurrentPos += ret;
 
-        if ( (ulong)(receiveBufCurrentPos - receiveBuffer) < MAX_RECEIVE_BUFFER_LENGTH ) 
+        if ((ulong)(receiveBufCurrentPos - receiveBuffer) < MAX_RECEIVE_BUFFER_LENGTH) 
         {
-            std::cout << "[recv notice] attempt to receive " << MAX_RECEIVE_BUFFER_LENGTH << " bytes but " 
-            << (ulong)(receiveBufCurrentPos - receiveBuffer) << " received per call (" << 
-            (MAX_RECEIVE_BUFFER_LENGTH - ((ulong)(receiveBufCurrentPos - receiveBuffer))) << " left to receive)"
-            << std::endl;
+            std::cout << "[recv notice] attempt to receive " << MAX_RECEIVE_BUFFER_LENGTH << " bytes but ";
+            std::cout << (ulong)(receiveBufCurrentPos - receiveBuffer) << " received per call (";
+            std::cout << (MAX_RECEIVE_BUFFER_LENGTH - ((ulong)(receiveBufCurrentPos - receiveBuffer))) << " left to receive)";
+            std::cout << std::endl;
         }  
     }
 
