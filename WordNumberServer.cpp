@@ -1,10 +1,8 @@
-#define _CRT_SECURE_NO_WARNINGS
+﻿#define _CRT_SECURE_NO_WARNINGS
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 
-#include <stdio.h>
 #include <winsock2.h>
-// #include "word_number.h"
-#include "oem866_word_number.h"
+#include "word_number.h"
 
 #define LOCALADDRESS "127.0.0.1"
 #define PORT 5555
@@ -76,52 +74,65 @@ int main() {
 // the connected client, regardless of the rest
 DWORD WINAPI serviceActiveClient(unsigned activeClientIdx) {
 
-    #define IF_CONNECTION_CLOSED if (ret == 0) {\
-                                    activeClientIdx--;\
-                                    std::cout << " disconnected" << std::endl;\
-                                    printNumUsers();\
-                                    return -1;\
-                                 }
+    #define IF_CONNECTION_CLOSED(ret) if (ret == 0) { \
+                                          activeClientIdx--; \
+                                          std::cout << " disconnected" << std::endl; \
+                                          printNumUsers(); \
+                                          return -1; \
+                                      }
 
     while (true)
     {
         // Receive the number and return the client a representation in words
-        const unsigned long MAX_RECEIVE_BUFFER_LENGTH = 8;
-        char receiveBuffer[MAX_RECEIVE_BUFFER_LENGTH];
+        ushort numSize;
 
-        int ret = recv(connections[activeClientIdx], receiveBuffer, sizeof(receiveBuffer), 0);
+        int numSizeRecvRet = recv(connections[activeClientIdx], (char*) &numSize, sizeof(ushort), 0);
 
-        if (ret == -1) {
+        char* receiveBuffer = new char[numSize + 1];
+
+        receiveBuffer[numSize] = '\0';
+
+        int numRecvRet = recv(connections[activeClientIdx], receiveBuffer, numSize, 0);
+
+        IF_CONNECTION_CLOSED(numSizeRecvRet)
+        IF_CONNECTION_CLOSED(numRecvRet)
+
+        if (numSizeRecvRet == -1 || numRecvRet == -1) {
             std::cout << "Server receive failed" << std::endl;
+            break;
         }
 
-        IF_CONNECTION_CLOSED
+        int number = atoi(receiveBuffer);
 
-        const ushort MAX_SEND_BUFFER_LENGTH = 60;
-        char sendBuffer[MAX_SEND_BUFFER_LENGTH];
+        delete[] receiveBuffer;
 
-        unsigned number = atoi(receiveBuffer);
-
-        if (number == 0) {
-            strcpy(sendBuffer, "ноль");
-        }
+        std::wstring sendBuffer;
 
         if (number < 0) {
-            strcat(sendBuffer, "минус ");
+            sendBuffer = L"минус ";
             number = -number;
         }
 
-        const char* strNum = wnServer.format(number).c_str();
-
-        strcat(sendBuffer, strNum);
-
-        ret = send(connections[activeClientIdx], sendBuffer, sizeof(sendBuffer), 0);
-
-        if (ret == -1) {
-            std::cout << "Server send failed" << std::endl;
+        if (number == 0) {
+            sendBuffer = L"ноль";
+        }
+        else {
+            sendBuffer = wnServer.format(number);
         }
 
-        IF_CONNECTION_CLOSED
+        ushort wordNumSize = sendBuffer.size();
+
+        int sendStrSizeRet = send(connections[activeClientIdx], (char*) &wordNumSize, sizeof(ushort), 0);
+
+        int wordNumSendRet = send(connections[activeClientIdx], (char*) sendBuffer.c_str(), wordNumSize, 0);
+
+        IF_CONNECTION_CLOSED(sendStrSizeRet)
+        IF_CONNECTION_CLOSED(wordNumSendRet)
+
+        if (sendStrSizeRet == -1 || wordNumSendRet == -1) {
+            std::cout << "Server send failed" << std::endl;
+            break;
+        }
     }
 
     closesocket(connections[activeClientIdx]);

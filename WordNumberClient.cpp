@@ -1,11 +1,13 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 
-#include <stdio.h>
 #include <winsock2.h>
-#include <stdlib.h>
-// #include "word_number.h"
-#include "oem866_word_number.h"
+#include <fcntl.h>
+#include <io.h>
+// #include <locale>
+// #include <codecvt>
+// #include <memory>
+#include "word_number.h"
 
 #define SERVERADDRESS "127.0.0.1"
 #define PORT 5555
@@ -16,6 +18,15 @@ void fail() {
 }
 
 int main() {
+    _setmode(_fileno(stdout), _O_U16TEXT);
+    // std::ios_base::sync_with_stdio(false);
+
+    // typedef std::codecvt_utf8<wchar_t/*, 0x10ffff, std::consume_header*/> utf8cvt_t;
+
+    // std::unique_ptr<utf8cvt_t> itf8Cvt(new utf8cvt_t);
+
+    // std::locale ru(std::locale(), itf8Cvt.get());
+    // std::wcout.imbue(ru);
 
     std::cout << "NUMTOSTR DEMO CLIENT" << std::endl;
 
@@ -44,41 +55,51 @@ int main() {
         return -1;
     }
 
-    #define IF_CONNECTION_CLOSED if (!ret) {  \
-                                    std::cout << "Connection closed" << std::endl; \
-                                    return -1;  \
-                                 }
+    #define IF_CONNECTION_CLOSED(ret) if (ret == 0) { \
+                                          std::cout << "Connection closed" << std::endl; \
+                                          return -1; \
+                                      }
 
     while (std::cin.peek() != 'q') {
-        const ushort MAX_SEND_BUF_SIZE = 8;
-        char sendBuffer[MAX_SEND_BUF_SIZE];
-
-        unsigned number;
+        int number;
 
         std::cin >> number;
 
-        sprintf(sendBuffer, "%d", number);
+        ushort numberSize = log10(abs((long double) number)) + 1;
+        std::string sendBuffer = std::to_string(number);
 
-        int ret = send(serverConnection, sendBuffer, sizeof(sendBuffer), 0);
+        int sendSizeRet = send(serverConnection, (char*) &numberSize, sizeof(int), 0);
+        int sendNumberRet = send(serverConnection, sendBuffer.c_str(), numberSize, 0);
+
+        IF_CONNECTION_CLOSED(sendSizeRet)
+        IF_CONNECTION_CLOSED(sendNumberRet)
         
-        if ( ret == -1 ) {
-            std::cout << "client send failed" << std::endl;
+        if (sendSizeRet == -1 || sendNumberRet == -1) {
+            std::cout << "Client send failed" << std::endl;
+            break;
         }
 
-        IF_CONNECTION_CLOSED
+        ushort wordNumberLen;
 
-        const ushort MAX_RECEIVE_BUFFER_LENGTH = 60;
-        char receiveBuffer[MAX_RECEIVE_BUFFER_LENGTH];
+        int lenRecvRet = recv(serverConnection, (char*) &wordNumberLen, sizeof(ushort), 0);
 
-        ret = recv(serverConnection, receiveBuffer, sizeof(receiveBuffer), 0);
+        wchar_t* receiveBuffer = new wchar_t[wordNumberLen + 1];
+
+        receiveBuffer[wordNumberLen] = '\0';
+
+        int wordNumRecvRet = recv(serverConnection, (char*) receiveBuffer, wordNumberLen, 0);
+
+        IF_CONNECTION_CLOSED(lenRecvRet)
+        IF_CONNECTION_CLOSED(wordNumRecvRet)
         
-        if (ret == -1) {
-            std::cout << "client receive failed" << std::endl;
+        if (lenRecvRet == -1 || wordNumRecvRet == -1) {
+            std::cout << "Client receive failed" << std::endl;
+            break;
         }
-
-        IF_CONNECTION_CLOSED
    
-        std::cout << receiveBuffer << std::endl;
+        std::wcout << receiveBuffer << std::endl;
+
+        delete[] receiveBuffer;
 
         std::cin.ignore();
     }
