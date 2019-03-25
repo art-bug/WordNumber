@@ -1,7 +1,8 @@
-﻿#define _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 
 #include <winsock2.h>
+#include <thread>
 #include "word_number.h"
 
 #define LOCALADDRESS "127.0.0.1"
@@ -58,10 +59,12 @@ int main() {
         else {
             connections[i] = clientConnection;
             activeClientIdx++;
-            
-            CreateThread(0, 0, (LPTHREAD_START_ROUTINE) serviceActiveClient, (LPVOID) i, 0, 0);
+
+            std::thread thread(serviceActiveClient, i);
 
             printNumUsers();
+
+            thread.join();
         }
     }
 
@@ -75,56 +78,32 @@ int main() {
 DWORD WINAPI serviceActiveClient(unsigned activeClientIdx) {
 
     #define IF_CONNECTION_CLOSED(ret) if (ret == 0) { \
+                                          std::cout << activeClientIdx << " user disconnected" << std::endl; \
                                           activeClientIdx--; \
-                                          std::cout << " disconnected" << std::endl; \
                                           printNumUsers(); \
                                           return -1; \
                                       }
 
     while (true)
     {
-        // Receive the number and return the client a representation in words
-        ushort numSize;
+        int number;
 
-        int numSizeRecvRet = recv(connections[activeClientIdx], (char*) &numSize, sizeof(ushort), 0);
+        int numberRecvRet = recv(connections[activeClientIdx], (char*) &number, sizeof(int), 0);
 
-        char* receiveBuffer = new char[numSize + 1];
+        IF_CONNECTION_CLOSED(numberRecvRet)
 
-        receiveBuffer[numSize] = '\0';
-
-        int numRecvRet = recv(connections[activeClientIdx], receiveBuffer, numSize, 0);
-
-        IF_CONNECTION_CLOSED(numSizeRecvRet)
-        IF_CONNECTION_CLOSED(numRecvRet)
-
-        if (numSizeRecvRet == -1 || numRecvRet == -1) {
+        if (numberRecvRet == -1) {
             std::cout << "Server receive failed" << std::endl;
             break;
         }
 
-        int number = atoi(receiveBuffer);
-
-        delete[] receiveBuffer;
-
-        std::wstring sendBuffer;
-
-        if (number < 0) {
-            sendBuffer = L"минус ";
-            number = -number;
-        }
-
-        if (number == 0) {
-            sendBuffer = L"ноль";
-        }
-        else {
-            sendBuffer = wnServer.format(number);
-        }
+        std::wstring sendBuffer = wnServer.format(number);
 
         ushort wordNumSize = sendBuffer.size();
 
         int sendStrSizeRet = send(connections[activeClientIdx], (char*) &wordNumSize, sizeof(ushort), 0);
 
-        int wordNumSendRet = send(connections[activeClientIdx], (char*) sendBuffer.c_str(), wordNumSize, 0);
+        int wordNumSendRet = send(connections[activeClientIdx], (const char*) sendBuffer.c_str(), wordNumSize + wordNumSize, 0);
 
         IF_CONNECTION_CLOSED(sendStrSizeRet)
         IF_CONNECTION_CLOSED(wordNumSendRet)

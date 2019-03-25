@@ -2,11 +2,6 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 
 #include <winsock2.h>
-#include <fcntl.h>
-#include <io.h>
-// #include <locale>
-// #include <codecvt>
-// #include <memory>
 #include "word_number.h"
 
 #define SERVERADDRESS "127.0.0.1"
@@ -18,15 +13,7 @@ void fail() {
 }
 
 int main() {
-    _setmode(_fileno(stdout), _O_U16TEXT);
-    // std::ios_base::sync_with_stdio(false);
-
-    // typedef std::codecvt_utf8<wchar_t/*, 0x10ffff, std::consume_header*/> utf8cvt_t;
-
-    // std::unique_ptr<utf8cvt_t> itf8Cvt(new utf8cvt_t);
-
-    // std::locale ru(std::locale(), itf8Cvt.get());
-    // std::wcout.imbue(ru);
+    setlocale(LC_ALL, "");
 
     std::cout << "NUMTOSTR DEMO CLIENT" << std::endl;
 
@@ -65,16 +52,11 @@ int main() {
 
         std::cin >> number;
 
-        ushort numberSize = log10(abs((long double) number)) + 1;
-        std::string sendBuffer = std::to_string(number);
+        int sendNumberRet = send(serverConnection, (char*) &number, sizeof(int), 0);
 
-        int sendSizeRet = send(serverConnection, (char*) &numberSize, sizeof(int), 0);
-        int sendNumberRet = send(serverConnection, sendBuffer.c_str(), numberSize, 0);
-
-        IF_CONNECTION_CLOSED(sendSizeRet)
         IF_CONNECTION_CLOSED(sendNumberRet)
         
-        if (sendSizeRet == -1 || sendNumberRet == -1) {
+        if (sendNumberRet == -1) {
             std::cout << "Client send failed" << std::endl;
             break;
         }
@@ -87,7 +69,7 @@ int main() {
 
         receiveBuffer[wordNumberLen] = '\0';
 
-        int wordNumRecvRet = recv(serverConnection, (char*) receiveBuffer, wordNumberLen, 0);
+        int wordNumRecvRet = recv(serverConnection, (char*) receiveBuffer, wordNumberLen + wordNumberLen, 0);
 
         IF_CONNECTION_CLOSED(lenRecvRet)
         IF_CONNECTION_CLOSED(wordNumRecvRet)

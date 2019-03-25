@@ -13,9 +13,9 @@ class Rank
 
     protected:
 
-        ushort getNumSize(int number)
+        uint8_t getNumSize(int number)
 		{
-			return log10(abs((long double) number)) + 1;
+			return log10(abs(number)) + 1;
 		}
 
         std::wstring runNext(int number)
@@ -229,10 +229,6 @@ class HundredThousand : public Rank
 
         std::wstring format(int number)
 		{
-			if (getNumSize(number) > 6) {
-				return L"Число с данной разрядностью не поддерживается.";
-			}
-			
             if (getNumSize(number) < 6) {
                 return runNext(number);
             }
@@ -298,6 +294,18 @@ class WordNumber
 
         std::wstring format(int number)
 		{
+            if (number == 0) {
+                return L"ноль";
+            }
+
+            if ((uint8_t) log10(abs(number)) + 1 > 6) {
+                return L"Число с данной разрядностью не поддерживается.";
+            }
+
+            if (number < 0) {
+                return L"минус " + rootRank->format(-number);
+            }
+
             return rootRank->format(number);
         }
 };
